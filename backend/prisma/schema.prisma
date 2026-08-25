@@ -1,0 +1,395 @@
+// datasource — PostgreSQL via Prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum Language {
+  MARATHI
+  ENGLISH
+  BILINGUAL
+}
+
+enum QuestionStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum SourceType {
+  PYQ
+  AI_GENERATED
+  PRACTICE
+  MOCK
+}
+
+enum QuizType {
+  DAILY
+  SUBJECT
+  TOPIC
+  PYQ
+  MOCK
+  REVISION
+  WEAK_TOPIC
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum PlanInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  role          Role           @default(STUDENT)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  quizAttempts  QuizAttempt[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  bookmarks     Bookmark[]
+
+  @@map("users")
+}
+
+model Exam {
+  id          String      @id @default(uuid())
+  name        String      @unique // e.g. "MPSC Group C"
+  code        String      @unique // e.g. "MPSC_GROUP_C"
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  stages      ExamStage[]
+  papers      Paper[]
+  questions   Question[]
+
+  @@map("exams")
+}
+
+model ExamStage {
+  id          String     @id @default(uuid())
+  examId      String
+  name        String     // e.g. "Prelims", "Mains"
+  code        String     // e.g. "PRELIMS", "MAINS"
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  exam        Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  papers      Paper[]
+  questions   Question[]
+
+  @@unique([examId, code])
+  @@map("exam_stages")
+}
+
+model Subject {
+  id          String     @id @default(uuid())
+  name        String     @unique // e.g. "Indian Polity"
+  code        String     @unique // e.g. "POLITY"
+  description String?
+  icon        String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  topics      Topic[]
+  questions   Question[]
+
+  @@map("subjects")
+}
+
+model Topic {
+  id          String     @id @default(uuid())
+  subjectId   String
+  name        String     // e.g. "Indian Constitution"
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  subject     Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions   Question[]
+
+  @@unique([subjectId, name])
+  @@map("topics")
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  EXTRACTED
+  FAILED
+}
+
+model Paper {
+  id               String           @id @default(uuid())
+  examId           String
+  stageId          String
+  year             Int              // e.g. 2024
+  title            String           // e.g. "MPSC Group C Prelims 2024 General Studies"
+  pdfUrl           String?
+  fileUrl          String?          // Storage path on server/disk
+  answerKeyUrl     String?          // Optional answer key path
+  processingStatus ProcessingStatus @default(PENDING)
+  fileSize         Int?             // File size in bytes
+  mimeType         String?          // e.g. "application/pdf"
+  language         Language         @default(MARATHI)
+  totalMarks       Int              @default(100)
+  duration         Int              @default(60) // in minutes
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  exam             Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  stage            ExamStage        @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  questions        Question[]
+
+  @@map("papers")
+}
+
+model Question {
+  id             String           @id @default(uuid())
+  examId         String
+  stageId        String
+  paperId        String?
+  subjectId      String
+  topicId        String?
+  year           Int?
+  questionText   String
+  explanation    String?
+  correctOption  String           // "A", "B", "C", or "D"
+  questionType   QuestionType     @default(SINGLE_CHOICE)
+  difficulty     Difficulty       @default(MEDIUM)
+  language       Language         @default(MARATHI)
+  status         QuestionStatus   @default(PENDING_REVIEW)
+  aiGenerated    Boolean          @default(false)
+  aiConfidence   Float?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  exam           Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  stage          ExamStage        @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  paper          Paper?           @relation(fields: [paperId], references: [id], onDelete: SetNull)
+  subject        Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topic          Topic?           @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  options        QuestionOption[]
+  source         QuestionSource?
+  quizQuestions  QuizQuestion[]
+  quizAnswers    QuizAnswer[]
+  bookmarks      Bookmark[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid())
+  questionId String
+  optionKey  String   // "A", "B", "C", "D"
+  optionText String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, optionKey])
+  @@map("question_options")
+}
+
+model QuestionSource {
+  id             String     @id @default(uuid())
+  questionId     String     @unique
+  sourceType     SourceType @default(PYQ)
+  examName       String?    // e.g. "MPSC Group C"
+  paperName      String?    // e.g. "General Studies Paper 1"
+  year           Int?
+  questionNumber Int?
+  sourceFile     String?
+  pageNumber     Int?
+  question       Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_sources")
+}
+
+model Quiz {
+  id             String         @id @default(uuid())
+  title          String
+  description    String?
+  quizType       QuizType       @default(DAILY)
+  duration       Int            @default(15) // in minutes
+  totalMarks     Int            @default(20)
+  totalQuestions Int            @default(20)
+  isActive       Boolean        @default(true)
+  scheduledDate  DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  quizQuestions  QuizQuestion[]
+  quizAttempts   QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id         String   @id @default(uuid())
+  quizId     String
+  questionId String
+  orderIndex Int      @default(0)
+  marks      Float    @default(1.0)
+  quiz       Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, questionId])
+  @@map("quiz_questions")
+}
+
+model QuizAttempt {
+  id               String        @id @default(uuid())
+  userId           String
+  quizId           String
+  score            Float         @default(0)
+  maxScore         Float         @default(0)
+  accuracy         Float         @default(0) // Percentage 0-100
+  totalQuestions   Int           @default(0)
+  correctCount     Int           @default(0)
+  incorrectCount   Int           @default(0)
+  unattemptedCount Int           @default(0)
+  timeSpentSeconds Int           @default(0)
+  status           AttemptStatus @default(IN_PROGRESS)
+  completedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers QuizAnswer[]
+
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id                String      @id @default(uuid())
+  attemptId         String
+  questionId        String
+  selectedOption    String?     // "A", "B", "C", "D" or null
+  correctOption     String?     // "A", "B", "C", "D"
+  isCorrect         Boolean     @default(false)
+  isMarkedForReview Boolean     @default(false)
+  timeSpentSeconds  Int         @default(0)
+  createdAt         DateTime    @default(now())
+  attempt           QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question          Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("quiz_answers")
+}
+
+model SubscriptionPlan {
+  id            String         @id @default(uuid())
+  name          String
+  code          String         @unique // e.g. "PREMIUM_MONTHLY", "PREMIUM_YEARLY"
+  description   String?
+  price         Float          // e.g. 99.0
+  currency      String         @default("INR")
+  interval      PlanInterval   @default(MONTHLY)
+  features      String[]       // Array of feature descriptions
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id         String             @id @default(uuid())
+  userId     String
+  planId     String
+  status     SubscriptionStatus @default(ACTIVE)
+  startDate  DateTime           @default(now())
+  endDate    DateTime
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan       SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  payments   Payment[]
+
+  @@map("subscriptions")
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  userId         String
+  subscriptionId String?
+  amount         Float
+  currency       String        @default("INR")
+  provider       String        @default("RAZORPAY") // "RAZORPAY" or "MOCK"
+  paymentId      String?       // Provider payment ID
+  orderId        String?       // Provider order ID
+  status         PaymentStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@map("payments")
+}
+
+model Bookmark {
+  id         String   @id @default(uuid())
+  userId     String
+  questionId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@map("bookmarks")
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

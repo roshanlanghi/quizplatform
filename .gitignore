@@ -1,0 +1,51 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Environment / Secrets ───────────────────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# ─── Prisma generated client ─────────────────────────────────────────────────
+backend/node_modules/
+backend/prisma/migrations/
+# Keep schema.prisma; exclude generated output
+backend/src/generated/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+
+# ─── Test coverage ───────────────────────────────────────────────────────────
+coverage/
+
+# ─── Uploads / Storage ───────────────────────────────────────────────────────
+# Ignore uploaded files but keep directory structure
+backend/uploads/**/*
+!backend/uploads/**/.gitkeep
+storage/
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
