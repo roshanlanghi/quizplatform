@@ -61,6 +61,14 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // ─── API routes ───────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'MPSC Prep AI API is running',
+    health: '/api/health',
+  });
+});
+
 app.use('/api', router);
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
