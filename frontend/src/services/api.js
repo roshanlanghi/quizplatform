@@ -2,11 +2,15 @@ import axios from 'axios';
 
 /**
  * Axios instance pre-configured for the MPSC Prep AI backend.
- * Base URL is picked from the Vite env variable VITE_API_URL,
- * falling back to the Vite dev proxy (/api) if unset.
+ * Vercel deployments use the same-origin /api proxy. Other deployments use
+ * VITE_API_URL, falling back to the local Vite proxy when it is unset.
  */
+const configuredApiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
+const isVercelDeployment = window.location.hostname.endsWith('.vercel.app');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api',
+  // Vercel routes /api to Render, avoiding browser-to-API CORS requests.
+  baseURL: isVercelDeployment || !configuredApiUrl ? '/api' : `${configuredApiUrl}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
